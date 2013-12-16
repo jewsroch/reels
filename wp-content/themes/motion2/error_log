@@ -1,0 +1,2 @@
+[21-Sep-2012 18:27:49] PHP Fatal error:  Call to undefined function  get_header() in /home1/spicyfis/public_html/reels/wp-content/themes/motion2/index.php on line 7
+[21-May-2013 18:14:07] PHP Fatal error:  Call to undefined function  get_header() in /home1/spicyfis/public_html/reels/wp-content/themes/motion2/index.php on line 7
