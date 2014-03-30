@@ -91,6 +91,7 @@ function powerpress_shortcode_handler( $attributes, $content = null )
 	$return = '';
 	$feed = '';
 	$channel = '';
+	$slug = ''; // latest and preferred way to specify the feed slug
 	$url = '';
 	$image = '';
 	$width = '';
@@ -100,6 +101,7 @@ function powerpress_shortcode_handler( $attributes, $content = null )
 			'url' => '',
 			'feed' => '',
 			'channel' => '',
+			'slug' => '',
 			'image' => '',
 			'width' => '',
 			'height' => ''
@@ -107,6 +109,8 @@ function powerpress_shortcode_handler( $attributes, $content = null )
 		
 	if( empty($channel) && !empty($feed) ) // Feed for backward compat.
 		$channel = $feed;
+	if( !empty($slug) ) // Foward compatibility
+		$channel = $slug;
 	
 	if( !$url && $content )
 	{
@@ -155,6 +159,36 @@ function powerpress_shortcode_handler( $attributes, $content = null )
 		if( !isset($GeneralSettings['custom_feeds']['podcast']) )
 			$GeneralSettings['custom_feeds']['podcast'] = 'Podcast Feed'; // Fixes scenario where the user never configured the custom default podcast feed.
 		
+		// If we have post type podcasting enabled, then we need to use the podcast post type feeds instead here...
+		if( !empty($GeneralSettings['posttype_podcasting']) )
+		{
+			$post_type = get_query_var('post_type');
+			// Get the feed slugs and titles for this post type
+			$PostTypeSettingsArray = get_option('powerpress_posttype_'.$post_type);
+			// Loop through this array...
+			if( !empty($PostTypeSettingsArray) )
+			{
+				switch($post_type)
+				{
+					case 'post':
+					case 'page': {
+						// Do nothing!, we want the default podcast and channels to appear in these post types
+					}; break;
+					default: {
+						$GeneralSettings['custom_feeds'] = array(); // reset this array since we're working with  a custom post type
+					};
+				}
+				
+				while( list($feed_slug, $postTypeSettings) = each($PostTypeSettingsArray) )
+				{
+					if( !empty( $postTypeSettings['title']) )
+						$GeneralSettings['custom_feeds'][ $feed_slug ] = $postTypeSettings['title'];
+					else
+						$GeneralSettings['custom_feeds'][ $feed_slug ] = $feed_slug;
+				}
+			}
+		}
+	
 		while( list($feed_slug,$feed_title)  = each($GeneralSettings['custom_feeds']) )
 		{
 			if( isset($GeneralSettings['disable_player']) && isset($GeneralSettings['disable_player'][$feed_slug]) )
@@ -178,7 +212,7 @@ function powerpress_shortcode_handler( $attributes, $content = null )
 			if( !empty($height) )
 				$EpisodeData['height'] = $height;
 				
-			if( isset($GeneralSettings['premium_caps']) && $GeneralSettings['premium_caps'] && !powerpress_premium_content_authorized($GeneralSettings) )
+			if( isset($GeneralSettings['premium_caps']) && $GeneralSettings['premium_caps'] && !powerpress_premium_content_authorized($feed_slug) )
 			{
 				$return .= powerpress_premium_content_message($post->ID, $feed_slug, $EpisodeData);
 				continue;
@@ -922,18 +956,18 @@ function powerpressplayer_link_download($content, $media_url, $ExtraData = array
 	$player_links = '';
 	if( $GeneralSettings['podcast_link'] == 1 )
 	{
-		$player_links .= "<a href=\"{$media_url}\" class=\"powerpress_link_d\" title=\"". POWERPRESS_DOWNLOAD_TEXT ."\" rel=\"nofollow\">". POWERPRESS_DOWNLOAD_TEXT ."</a>".PHP_EOL;
+		$player_links .= "<a href=\"{$media_url}\" class=\"powerpress_link_d\" title=\"". POWERPRESS_DOWNLOAD_TEXT ."\" rel=\"nofollow\" download=\"". htmlspecialchars(basename($media_url)) ."\">". POWERPRESS_DOWNLOAD_TEXT ."</a>".PHP_EOL;
 	}
 	else if( $GeneralSettings['podcast_link'] == 2 )
 	{
-		$player_links .= "<a href=\"{$media_url}\" class=\"powerpress_link_d\" title=\"". POWERPRESS_DOWNLOAD_TEXT ."\" rel=\"nofollow\">". POWERPRESS_DOWNLOAD_TEXT ."</a> (".powerpress_byte_size($ExtraData['size']).") ".PHP_EOL;
+		$player_links .= "<a href=\"{$media_url}\" class=\"powerpress_link_d\" title=\"". POWERPRESS_DOWNLOAD_TEXT ."\" rel=\"nofollow\" download=\"". htmlspecialchars(basename($media_url)) ."\">". POWERPRESS_DOWNLOAD_TEXT ."</a> (".powerpress_byte_size($ExtraData['size']).") ".PHP_EOL;
 	}
 	else if( $GeneralSettings['podcast_link'] == 3 )
 	{
-		if( $ExtraData['duration'] && ltrim($ExtraData['duration'], '0:') != '' )
-			$player_links .= "<a href=\"{$media_url}\" class=\"powerpress_link_d\" title=\"". POWERPRESS_DOWNLOAD_TEXT ."\" rel=\"nofollow\">". POWERPRESS_DOWNLOAD_TEXT ."</a> (". htmlspecialchars(POWERPRESS_DURATION_TEXT) .": " . powerpress_readable_duration($ExtraData['duration']) ." &#8212; ".powerpress_byte_size($ExtraData['size']).")".PHP_EOL;
+		if( !empty($ExtraData['duration']) && ltrim($ExtraData['duration'], '0:') != '' )
+			$player_links .= "<a href=\"{$media_url}\" class=\"powerpress_link_d\" title=\"". POWERPRESS_DOWNLOAD_TEXT ."\" rel=\"nofollow\" download=\"". htmlspecialchars(basename($media_url)) ."\">". POWERPRESS_DOWNLOAD_TEXT ."</a> (". htmlspecialchars(POWERPRESS_DURATION_TEXT) .": " . powerpress_readable_duration($ExtraData['duration']) ." &#8212; ".powerpress_byte_size($ExtraData['size']).")".PHP_EOL;
 		else
-			$player_links .= "<a href=\"{$media_url}\" class=\"powerpress_link_d\" title=\"". POWERPRESS_DOWNLOAD_TEXT ."\" rel=\"nofollow\">". POWERPRESS_DOWNLOAD_TEXT ."</a> (".powerpress_byte_size($ExtraData['size']).")".PHP_EOL;
+			$player_links .= "<a href=\"{$media_url}\" class=\"powerpress_link_d\" title=\"". POWERPRESS_DOWNLOAD_TEXT ."\" rel=\"nofollow\" download=\"". htmlspecialchars(basename($media_url)) ."\">". POWERPRESS_DOWNLOAD_TEXT ."</a> (".powerpress_byte_size($ExtraData['size']).")".PHP_EOL;
 	}
 	
 	if( $player_links && !empty($content) )
@@ -1414,6 +1448,15 @@ function powerpressplayer_build_mediaelementaudio($media_url, $EpisodeData=array
 	
 	$content .= '<div class="powerpress_player" id="powerpress_player_'. $player_id .'">'.PHP_EOL;
 	$content .= '<audio class="powerpress-mejs-audio" controls="controls"';
+	
+	// Set the type if required
+	$extension = powerpressplayer_get_extension($EpisodeData['url']);
+	switch( $extension )
+	{
+		case 'm4a': {
+			$content .= ' type="audio/mp4"';
+		}; break;
+	}
 	
 	// Prevent pre-loading in certain browsers
 	$media_url_src = $media_url;

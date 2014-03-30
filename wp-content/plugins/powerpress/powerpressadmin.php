@@ -547,10 +547,17 @@ function powerpress_admin_init()
 					$GeneralSettingsTemp = powerpress_get_settings('powerpress_general', false);
 					if( !empty($GeneralSettingsTemp['blubrry_hosting']) && $GeneralSettingsTemp['blubrry_hosting'] !== 'false' )
 					{
+						$json_data = false;
+						$api_url_array = powerpress_get_api_array();
+						while( list($index,$api_url) = each($api_url_array) )
+						{
+							$req_url = sprintf('%s/media/%s/coverart.json?url=%s', rtrim($api_url, '/'), $GeneralSettingsTemp['blubrry_program_keyword'], urlencode($TagValues['tag_coverart']) );
+							$req_url .= (defined('POWERPRESS_BLUBRRY_API_QSA')?'&'. POWERPRESS_BLUBRRY_API_QSA:'');
+							$json_data = powerpress_remote_fopen($req_url, $GeneralSettingsTemp['blubrry_auth']);
+							if( $json_data != false )
+								break;
+						}
 						// Lets try to cache the image onto Blubrry's Server...
-						$api_url = sprintf('%s/media/%s/coverart.json?url=%s', rtrim(POWERPRESS_BLUBRRY_API_URL, '/'), $GeneralSettingsTemp['blubrry_program_keyword'], urlencode($TagValues['tag_coverart']) );
-						$api_url .= (defined('POWERPRESS_BLUBRRY_API_QSA')?'&'. POWERPRESS_BLUBRRY_API_QSA:'');
-						$json_data = powerpress_remote_fopen($api_url, $GeneralSettingsTemp['blubrry_auth']);
 						$results =  powerpress_json_decode($json_data);
 							
 						if( is_array($results) && !isset($results['error']) )
@@ -1354,7 +1361,7 @@ function powerpress_rebuild_posttype_podcasting()
 			$FeedSlugPostTypeArray[ $feed_slug ][ $post_type ] = ( empty($PostTypeSettings['title'])? $feed_slug : $PostTypeSettings['title'] );
 		}
 	}
-	update_option('powerpress_posttype_podcasting', $FeedSlugPostTypeArray);
+	update_option('powerpress_posttype-podcasting', $FeedSlugPostTypeArray);
 }
 
 function powerpress_admin_menu()
@@ -1372,7 +1379,7 @@ function powerpress_admin_menu()
 		$FeedSlugPostTypesArray = array();
 		if( !empty($Powerpress['posttype_podcasting']) )
 		{
-			$FeedSlugPostTypesArray = get_option('powerpress_posttype_podcasting');
+			$FeedSlugPostTypesArray = get_option('powerpress_posttype-podcasting');
 				if( empty($FeedSlugPostTypesArray) )
 					$FeedSlugPostTypesArray = array();
 		}
@@ -1403,7 +1410,7 @@ function powerpress_admin_menu()
 		{
 			add_meta_box('powerpress-podcast', __('Podcast Episode (default)', 'powerpress'), 'powerpress_meta_box', 'post', 'normal'); // Default podcast box for post type 'post'
 			
-			$FeedSlugPostTypesArray = get_option('powerpress_posttype_podcasting');
+			$FeedSlugPostTypesArray = get_option('powerpress_posttype-podcasting');
 			if( empty($FeedSlugPostTypesArray) )
 				$FeedSlugPostTypesArray = array();
 
@@ -2917,6 +2924,17 @@ function powerpress_process_hosting($post_ID, $post_title)
 		$CustomFeeds = $Settings['custom_feeds'];
 	if( !isset($CustomFeeds['podcast']) )
 		$CustomFeeds['podcast'] = 'podcast';
+		
+	
+	if( !empty($Settings['posttype_podcasting']) )
+	{
+		$FeedSlugPostTypesArray = get_option('powerpress_posttype-podcasting');
+		while( list($feed_slug, $null) = each($FeedSlugPostTypesArray) )
+		{
+			if( empty($CustomFeeds[$feed_slug]) )
+				$CustomFeeds[$feed_slug] = $feed_slug;
+		}
+	}
 	
 	while( list($feed_slug,$null) = each($CustomFeeds) )
 	{
@@ -3000,9 +3018,17 @@ function powerpress_process_hosting($post_ID, $post_title)
 				{
 					// Extend the max execution time here
 					set_time_limit(60*20); // give it 20 minutes just in case
-					$api_url = sprintf('%s/media/%s/%s?format=json&publish=true', rtrim(POWERPRESS_BLUBRRY_API_URL, '/'), urlencode($Settings['blubrry_program_keyword']), urlencode($EnclosureURL)  );
-					$api_url .= (defined('POWERPRESS_BLUBRRY_API_QSA')?'&'. POWERPRESS_BLUBRRY_API_QSA:'');
-					$json_data = powerpress_remote_fopen($api_url, $Settings['blubrry_auth'], array(), 60*30); // give this up to 30 minutes, though 3 seocnds to 20 seconds is all one should need.
+					$json_data = false;
+					$api_url_array = powerpress_get_api_array();
+					while( list($index,$api_url) = each($api_url_array) )
+					{
+						$req_url = sprintf('%s/media/%s/%s?format=json&publish=true', rtrim($api_url, '/'), urlencode($Settings['blubrry_program_keyword']), urlencode($EnclosureURL)  );
+						$req_url .= (defined('POWERPRESS_BLUBRRY_API_QSA')?'&'. POWERPRESS_BLUBRRY_API_QSA:'');
+						$json_data = powerpress_remote_fopen($req_url, $Settings['blubrry_auth'], array(), 60*30); // give this up to 30 minutes, though 3 seocnds to 20 seconds is all one should need.
+						if( $json_data != false )
+							break;
+					}
+					
 					$results =  powerpress_json_decode($json_data);
 					
 					if( is_array($results) && !isset($results['error']) )
@@ -3098,9 +3124,6 @@ function powerpress_admin_import_podpress_settings()
 	else
 		$General['display_player'] = 1;
 	
-	if( $PodpressData['iTunes']['FeedID'] )
-		$General['itunes_url'] = 'http://phobos.apple.com/WebObjects/MZStore.woa/wa/viewPodcast?id='. $PodpressData['iTunes']['FeedID'];
-	
 	// save these imported general settings
 	powerpress_save_settings($General, 'powerpress_general');
 
@@ -3139,6 +3162,9 @@ function powerpress_admin_import_podpress_settings()
 		$FeedSettings['itunes_explicit'] = 1;
 	else if( $PodpressData['iTunes']['explicit'] == 'Clean' )
 		$FeedSettings['itunes_explicit'] = 2;
+		
+	if( !empty($PodpressData['iTunes']['FeedID']) )
+		$FeedSettings['itunes_url'] = 'http://phobos.apple.com/WebObjects/MZStore.woa/wa/viewPodcast?id='. $PodpressData['iTunes']['FeedID'];
 
 	// Lastly, lets try to get the RSS image from the database
 	$RSSImage = get_option('rss_image');
@@ -3437,10 +3463,16 @@ function powerpress_write_tags($file, $post_title)
 	}
 							
 	// Get meta info via API
-	$api_url = sprintf('%s/media/%s/%s?format=json&id3=true', rtrim(POWERPRESS_BLUBRRY_API_URL, '/'), urlencode($Settings['blubrry_program_keyword']), urlencode($file) );
-	$api_url .= (defined('POWERPRESS_BLUBRRY_API_QSA')?'&'. POWERPRESS_BLUBRRY_API_QSA:'');
+	$api_url_array = powerpress_get_api_array();
+	while( list($index,$api_url) = each($api_url_array) )
+	{
+		$req_url = sprintf('%s/media/%s/%s?format=json&id3=true', rtrim($api_url, '/'), urlencode($Settings['blubrry_program_keyword']), urlencode($file) );
+		$req_url .= (defined('POWERPRESS_BLUBRRY_API_QSA')?'&'. POWERPRESS_BLUBRRY_API_QSA:'');
+		$content = powerpress_remote_fopen($req_url, $Settings['blubrry_auth'], $PostArgs );
+		if( $content != false )
+			break;
+	}
 	
-	$content = powerpress_remote_fopen($api_url, $Settings['blubrry_auth'], $PostArgs );
 	if( $content )
 	{
 		$Results = powerpress_json_decode($content);
@@ -3454,10 +3486,17 @@ function powerpress_write_tags($file, $post_title)
 function powerpress_get_media_info($file)
 {
 	$Settings = get_option('powerpress_general');
+	$content = false;
+	$api_url_array = powerpress_get_api_array();
+	while( list($index,$api_url) = each($api_url_array) )
+	{
+		$req_url = sprintf('%s/media/%s/%s?format=json&info=true', rtrim($api_url, '/'), urlencode($Settings['blubrry_program_keyword']), urlencode($file) );
+		$req_url .= (defined('POWERPRESS_BLUBRRY_API_QSA')?'&'. POWERPRESS_BLUBRRY_API_QSA:'');
+		$content = powerpress_remote_fopen($req_url, $Settings['blubrry_auth']);
+		if( $content != false )
+			break;
+	}
 	
-	$api_url = sprintf('%s/media/%s/%s?format=json&info=true', rtrim(POWERPRESS_BLUBRRY_API_URL, '/'), urlencode($Settings['blubrry_program_keyword']), urlencode($file) );
-	$api_url .= (defined('POWERPRESS_BLUBRRY_API_QSA')?'&'. POWERPRESS_BLUBRRY_API_QSA:'');
-	$content = powerpress_remote_fopen($api_url, $Settings['blubrry_auth']);
 	if( $content )
 	{
 		$Results = powerpress_json_decode($content);
@@ -3862,11 +3901,11 @@ function powerpressadmin_community_news($items=3)
 	echo '<div style="margin-top:10px;border-top: 1px solid #ddd; padding-top: 10px; text-align:center;">';
 	echo  __('Subscribe:', 'powerpress');
 	echo ' &nbsp; ';
-	echo '<a href="http://www.powerpresspodcast.com/feed/"><img src="'.get_bloginfo('wpurl').'/wp-includes/images/rss.png" /> '. __('Blog', 'powerpress') .'</a>';
+	echo '<a href="http://www.powerpresspodcast.com/feed/"><img src="'.get_bloginfo('wpurl').'/wp-includes/images/rss.png" alt="'. __('Blog', 'powerpress') .'" /> '. __('Blog', 'powerpress') .'</a>';
 	echo ' &nbsp; ';
-	echo '<a href="http://www.powerpresspodcast.com/feed/podcast/"><img src="'.get_bloginfo('wpurl').'/wp-includes/images/rss.png" /> '. __('Podcast', 'powerpress') .'</a>';
+	echo '<a href="http://www.powerpresspodcast.com/feed/podcast/"><img src="'.get_bloginfo('wpurl').'/wp-includes/images/rss.png" alt="'. __('Podcast', 'powerpress') .'" /> '. __('Podcast', 'powerpress') .'</a>';
 	echo ' &nbsp; ';
-	echo '<a href="https://itunes.apple.com/us/podcast/blubrry-powerpress-community/id430248099/"><img src="'.powerpress_get_root_url().'/images/itunes_modern.png" /> '. __('iTunes', 'powerpress') .'</a>';
+	echo '<a href="https://itunes.apple.com/us/podcast/blubrry-powerpress-community/id430248099/"><img src="'.powerpress_get_root_url().'/images/itunes_modern.png" alt="'. __('iTunes', 'powerpress') .'" /> '. __('iTunes', 'powerpress') .'</a>';
 	//echo ' &nbsp; &nbsp; ';
 	
 	echo '</div>';

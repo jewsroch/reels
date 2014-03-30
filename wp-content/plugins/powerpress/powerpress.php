@@ -3,7 +3,7 @@
 Plugin Name: Blubrry PowerPress
 Plugin URI: http://create.blubrry.com/resources/powerpress/
 Description: <a href="http://create.blubrry.com/resources/powerpress/" target="_blank">Blubrry PowerPress</a> adds podcasting support to your blog. Features include: media player, 3rd party statistics, iTunes integration, Blubrry Services (Media Statistics and Hosting) integration and a lot more.
-Version: 5.0.3
+Version: 5.0.5
 Author: Blubrry
 Author URI: http://www.blubrry.com/
 Change Log:
@@ -32,7 +32,7 @@ if( !function_exists('add_action') )
 	die("access denied.");
 	
 // WP_PLUGIN_DIR (REMEMBER TO USE THIS DEFINE IF NEEDED)
-define('POWERPRESS_VERSION', '5.0.3' );
+define('POWERPRESS_VERSION', '5.0.5' );
 
 // Translation support:
 if ( !defined('POWERPRESS_ABSPATH') )
@@ -159,6 +159,8 @@ function powerpress_content($content)
 	
 	if( !isset($GeneralSettings['custom_feeds']) )
     $GeneralSettings['custom_feeds'] = array('podcast'=>'Default Podcast Feed');
+	if( empty($GeneralSettings['custom_feeds']['podcast']) )
+		$GeneralSettings['custom_feeds']['podcast'] = 'Default Podcast Feed';
 	
 	// Re-order so the default podcast episode is the top most...
 	$Temp = $GeneralSettings['custom_feeds'];
@@ -169,6 +171,39 @@ function powerpress_content($content)
 		if( $feed_slug == 'podcast' )
 			continue;
 		$GeneralSettings['custom_feeds'][ $feed_slug ] = $feed_title;
+	}
+	
+	// Handle post type feeds....
+	if( !empty($GeneralSettings['posttype_podcasting']) )
+	{
+		$post_type = get_query_var('post_type');
+		//$post_type = get_post_type();
+		
+		// Get the feed slugs and titles for this post type
+		$PostTypeSettingsArray = get_option('powerpress_posttype_'.$post_type);
+		// Loop through this array of post type settings...
+		if( !empty($PostTypeSettingsArray) )
+		{
+			switch($post_type)
+			{
+				case 'post':
+				case 'page': {
+					// Do nothing!, we want the default podcast to appear in these post types
+				}; break;
+				default: {
+					if( !empty($post_type) && empty($PostTypeSettingsArray['podcast']) )
+						unset($GeneralSettings['custom_feeds']['podcast']); // special case, we do not want an accidental podcast episode to appear in a custom post type if the feature is enabled
+				}; break;
+			}
+			
+			while( list($feed_slug, $postTypeSettings) = each($PostTypeSettingsArray) )
+			{
+				if( !empty( $postTypeSettings['title']) )
+					$GeneralSettings['custom_feeds'][ $feed_slug ] = $postTypeSettings['title'];
+				else
+					$GeneralSettings['custom_feeds'][ $feed_slug ] = $feed_slug;
+			}
+		}
 	}
 	
 	if( !isset($GeneralSettings['display_player']) )
@@ -1195,10 +1230,24 @@ function powerpress_init()
 	{
 		// Loop through the posttype podcasting settings and set the feeds for the custom post type slugs...
 		global $wp_rewrite;
-		$FeedSlugPostTypesArray = get_option('powerpress_posttype_podcasting');
+		
+		
+		$FeedSlugPostTypesArray = get_option('powerpress_posttype-podcasting'); // Changed field slightly so it does not conflict with a post type "podcasting"
+		if( $FeedSlugPostTypesArray === false )
+		{
+			// Simple one-time fix...
+			$FeedSlugPostTypesArray = get_option('powerpress_posttype_podcasting');
+			if( empty($FeedSlugPostTypesArray) )
+				$FeedSlugPostTypesArray = array();
+			update_option('powerpress_posttype-podcasting', $FeedSlugPostTypesArray);
+			if( !array_key_exists('title', $FeedSlugPostTypesArray) ) // AS long as it doesn't have post type specific settings...
+				delete_option('powerpress_posttype_podcasting');
+		}
+		
 		if( empty($FeedSlugPostTypesArray) )
+		{
 			$FeedSlugPostTypesArray = array();
-
+		}
 		while( list($feed_slug, $FeedSlugPostTypes) = each($FeedSlugPostTypesArray) )
 		{
 			if ( !in_array($feed_slug, $wp_rewrite->feeds) ) // we need to add this feed name
@@ -1671,11 +1720,45 @@ function get_the_powerpress_content()
 	$Temp = $GeneralSettings['custom_feeds'];
 	$GeneralSettings['custom_feeds'] = array();
 	$GeneralSettings['custom_feeds']['podcast'] = 'Default Podcast Feed';
+	
 	while( list($feed_slug, $feed_title) = each($Temp) )
 	{
 		if( $feed_slug == 'podcast' )
 			continue;
 		$GeneralSettings['custom_feeds'][ $feed_slug ] = $feed_title;
+	}
+	
+	// Handle post type feeds....
+	if( !empty($GeneralSettings['posttype_podcasting']) )
+	{
+		$post_type = get_query_var('post_type');
+		//$post_type = get_post_type();
+		
+		// Get the feed slugs and titles for this post type
+		$PostTypeSettingsArray = get_option('powerpress_posttype_'.$post_type);
+		// Loop through this array of post type settings...
+		if( !empty($PostTypeSettingsArray) )
+		{
+			switch($post_type)
+			{
+				case 'post':
+				case 'page': {
+					// Do nothing!, we want the default podcast to appear in these post types
+				}; break;
+				default: {
+					if( !empty($post_type) && empty($PostTypeSettingsArray['podcast']) )
+						unset($GeneralSettings['custom_feeds']['podcast']); // special case, we do not want an accidental podcast episode to appear in a custom post type if the feature is enabled
+				}; break;
+			}
+			
+			while( list($feed_slug, $postTypeSettings) = each($PostTypeSettingsArray) )
+			{
+				if( !empty( $postTypeSettings['title']) )
+					$GeneralSettings['custom_feeds'][ $feed_slug ] = $postTypeSettings['title'];
+				else
+					$GeneralSettings['custom_feeds'][ $feed_slug ] = $feed_slug;
+			}
+		}
 	}
 	
 	if( !isset($GeneralSettings['display_player']) )
@@ -2542,7 +2625,7 @@ function get_the_powerpress_all_players($slug = false, $no_link=false)
 					$AddDefaultPlayer = false;
 			}
 			
-			if( isset($GeneralSettings['premium_caps']) && $GeneralSettings['premium_caps'] && !powerpress_premium_content_authorized($GeneralSettings) )
+			if( isset($GeneralSettings['premium_caps']) && $GeneralSettings['premium_caps'] && !powerpress_premium_content_authorized($feed_slug) )
 			{
 				$return .= powerpress_premium_content_message(get_the_ID(), $feed_slug, $EpisodeData);
 				continue;
@@ -2572,6 +2655,19 @@ function powerpress_premium_content_authorized($feed_slug)
 		if( isset($FeedSettings['premium']) && $FeedSettings['premium'] != '' )
 			return current_user_can($FeedSettings['premium']);
 	}
+	
+	$post_type = get_query_var('post_type');
+	if( $post_type != 'post' )
+	{
+		$GeneralSettings = get_option('powerpress_general');
+		if( !empty($GeneralSettings['posttype_podcasting']) ) // Custom Post Types
+		{
+			// Get the feed slugs and titles for this post type
+			$PostTypeSettingsArray = get_option('powerpress_posttype_'.$post_type);
+			if( !empty($PostTypeSettingsArray[$feed_slug]['premium']) )
+				return current_user_can($PostTypeSettingsArray[$feed_slug]['premium']);
+		}
+	}
 	return true; // any user can access this content
 }
 
@@ -2583,6 +2679,20 @@ function powerpress_premium_content_message($post_id, $feed_slug, $EpisodeData =
 	if( !$EpisodeData )
 		return '';
 	$FeedSettings = get_option('powerpress_feed_'.$feed_slug);
+	$post_type = get_query_var('post_type');
+	if( $post_type != 'post' )
+	{
+		$GeneralSettings = get_option('powerpress_general');
+		if( !empty($GeneralSettings['posttype_podcasting']) ) // Custom Post Types
+		{
+			// Get the feed slugs and titles for this post type
+			$PostTypeSettingsArray = get_option('powerpress_posttype_'.$post_type);
+			if( !empty($PostTypeSettingsArray[$feed_slug]['premium']) )
+			{
+				$FeedSettings = $PostTypeSettingsArray[$feed_slug];
+			}
+		}
+	}
 	
 	$extension = 'unknown';
 	$parts = pathinfo($EpisodeData['url']);
@@ -2604,6 +2714,22 @@ function powerpress_is_mobile_client()
 	}
 	
 	return false;
+}
+
+function powerpress_get_api_array()
+{
+	$return = array();
+	if( strstr(POWERPRESS_BLUBRRY_API_URL, 'api.blubrry') == false )
+	{
+		$return[] = POWERPRESS_BLUBRRY_API_URL;
+	}
+	else
+	{
+		$return[] = 'http://api.blubrry.net/';
+		$return[] = 'http://api.blubrry.com/';
+	}
+	
+	return $return;
 }
 /*
 End Helper Functions
