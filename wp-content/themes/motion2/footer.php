@@ -50,7 +50,10 @@
 </div><!-- /footer -->
 
 <div id="credits">
-	<div id="creditsleft">Powered by <a href="http://wordpress.org/extend/themes/" rel="generator">WordPress</a> | Theme: <a href="http://85ideas.com/public-releases/wordpress-theme-motion/">Motion</a> by <a href="http://85ideas.com/" rel="designer">85ideas</a>. | <a href="http://www.comingoffthereels.com/wp-admin">Login</a></div>
+	<div id="creditsleft">&copy; Copyright <?php
+        echo date("Y") ?> | <a href="<?php echo get_option('home'); ?>"><?php bloginfo('name'); ?></a> <?php if ( "http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'] == get_option('home')."/" || "http://www.".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'] == get_option('home')."/" || $_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'] == get_option('home')."/" || "www.".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'] == get_option('home')."/" ) : ?>
+
+        <?php endif; ?>| All Rights Reserved</div>
 	<div id="creditsright"><a href="#top">&#91; Back to top &#93;</a></div>
 </div><!-- /credits -->
 
