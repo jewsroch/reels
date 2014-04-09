@@ -3,7 +3,7 @@
 Plugin Name: Blubrry PowerPress
 Plugin URI: http://create.blubrry.com/resources/powerpress/
 Description: <a href="http://create.blubrry.com/resources/powerpress/" target="_blank">Blubrry PowerPress</a> adds podcasting support to your blog. Features include: media player, 3rd party statistics, iTunes integration, Blubrry Services (Media Statistics and Hosting) integration and a lot more.
-Version: 5.0.5
+Version: 5.0.7
 Author: Blubrry
 Author URI: http://www.blubrry.com/
 Change Log:
@@ -32,7 +32,7 @@ if( !function_exists('add_action') )
 	die("access denied.");
 	
 // WP_PLUGIN_DIR (REMEMBER TO USE THIS DEFINE IF NEEDED)
-define('POWERPRESS_VERSION', '5.0.5' );
+define('POWERPRESS_VERSION', '5.0.7' );
 
 // Translation support:
 if ( !defined('POWERPRESS_ABSPATH') )
@@ -1215,7 +1215,9 @@ function powerpress_init()
 	
 	// Add the podcast feeds;
 	if( !defined('POWERPRESS_NO_PODCAST_FEED') )
+	{
 		add_feed('podcast', 'powerpress_do_podcast_feed');
+	}
 	
 	if( $GeneralSettings && isset($GeneralSettings['custom_feeds']) && is_array($GeneralSettings['custom_feeds']) )
 	{
@@ -1314,6 +1316,12 @@ function powerpress_plugins_loaded()
 add_action('plugins_loaded', 'powerpress_plugins_loaded');
 */
 
+
+function powerpress_w3tc_can_print_comment($settings)
+{
+	 return false; 
+}
+
 // Load the general feed settings for feeds handled by powerpress
 function powerpress_load_general_feed_settings()
 {
@@ -1332,7 +1340,17 @@ function powerpress_load_general_feed_settings()
 		if( $GeneralSettings )
 		{
 			$FeedSettingsBasic = get_option('powerpress_feed'); // Get overall feed settings
-				
+			if( is_feed() && defined( 'WPCACHEHOME' ) && empty($GeneralSettings['allow_feed_comments']) )
+			{
+				global $wp_super_cache_comments;
+				$wp_super_cache_comments = 0;
+			}
+			
+			if( is_feed() && defined('W3TC') && empty($GeneralSettings['allow_feed_comments']) )
+			{
+				add_filter( 'w3tc_can_print_comment', 'powerpress_w3tc_can_print_comment', 10, 1 );
+			}
+			
 			// If we're in advanced mode and we're dealing with a category feed we're extending, lets work with it...
 			if( is_category() && isset($GeneralSettings['custom_cat_feeds']) && is_array($GeneralSettings['custom_cat_feeds']) && in_array( get_query_var('cat'), $GeneralSettings['custom_cat_feeds']) )
 			{
@@ -1414,7 +1432,7 @@ function powerpress_load_general_feed_settings()
 					}
 				}
 			}
-			
+
 			$feed_slug = get_query_var('feed');
 			// Are we dealing with a custom podcast channel or a custom post type podcast feed...
 			if( !empty($GeneralSettings['posttype_podcasting']) || !empty($GeneralSettings['custom_feeds'][ $feed_slug ]) )

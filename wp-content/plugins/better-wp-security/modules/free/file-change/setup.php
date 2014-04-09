@@ -21,8 +21,8 @@ if ( ! class_exists( 'ITSEC_File_Change_Setup' ) ) {
 					'.jpeg',
 					'.png',
 					'.log',
-				    '.mo',
-				    '.po'
+					'.mo',
+					'.po'
 				),
 				'email'        => true,
 				'last_run'     => 0,
@@ -37,7 +37,7 @@ if ( ! class_exists( 'ITSEC_File_Change_Setup' ) ) {
 						$this->execute_activate();
 						break;
 					case 'upgrade':
-						$this->execute_activate( true );
+						$this->execute_upgrade();
 						break;
 					case 'deactivate':
 						$this->execute_deactivate();
@@ -59,11 +59,9 @@ if ( ! class_exists( 'ITSEC_File_Change_Setup' ) ) {
 		 *
 		 * @since 4.0
 		 *
-		 * @param  boolean $upgrade true if the plugin is updating
-		 *
 		 * @return void
 		 */
-		public function execute_activate( $upgrade = false ) {
+		public function execute_activate() {
 
 			$options = get_site_option( 'itsec_file_change' );
 
@@ -71,10 +69,6 @@ if ( ! class_exists( 'ITSEC_File_Change_Setup' ) ) {
 
 				add_site_option( 'itsec_file_change', $this->defaults );
 
-			}
-
-			if ( $upgrade === true ) {
-				$this->execute_upgrade();
 			}
 
 		}
@@ -124,6 +118,10 @@ if ( ! class_exists( 'ITSEC_File_Change_Setup' ) ) {
 
 				$current_options = get_site_option( 'itsec_file_change' );
 
+				if ( $current_options === false ) {
+					$current_options = $this->defaults;
+				}
+
 				$current_options['enabled']      = isset( $itsec_bwps_options['id_fileenabled'] ) && $itsec_bwps_options['id_fileenabled'] == 1 ? true : false;
 				$current_options['email']        = isset( $itsec_bwps_options['id_fileemailnotify'] ) && $itsec_bwps_options['id_fileemailnotify'] == 0 ? false : true;
 				$current_options['notify_admin'] = isset( $itsec_bwps_options['id_filedisplayerror'] ) && $itsec_bwps_options['id_filedisplayerror'] == 0 ? false : true;
@@ -136,6 +134,38 @@ if ( ! class_exists( 'ITSEC_File_Change_Setup' ) ) {
 				}
 
 				update_site_option( 'itsec_file_change', $current_options );
+
+			}
+
+			if ( $itsec_old_version < 4028 ) {
+
+				if ( ! is_multisite() ) {
+
+					$options = array(
+						'itsec_local_file_list',
+						'itsec_local_file_list_0',
+						'itsec_local_file_list_1',
+						'itsec_local_file_list_2',
+						'itsec_local_file_list_3',
+						'itsec_local_file_list_4',
+						'itsec_local_file_list_5',
+						'itsec_local_file_list_6',
+					);
+
+					foreach ( $options as $option ) {
+
+						$list = get_site_option( $option );
+
+						if ( $list !== false ) {
+
+							delete_site_option( $option );
+							add_option( $option, $list, '', 'no' );
+
+						}
+
+					}
+
+				}
 
 			}
 

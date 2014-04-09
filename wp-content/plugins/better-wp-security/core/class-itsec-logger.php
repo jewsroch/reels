@@ -53,6 +53,16 @@ final class ITSEC_Logger {
 
 		}
 
+		if ( isset( $_POST['itsec_clear_logs'] ) && $_POST['itsec_clear_logs'] === 'clear_logs' ) {
+
+			global $itsec_clear_all_logs;
+
+			$itsec_clear_all_logs = true;
+
+			add_action( 'plugins_loaded', array( $this, 'purge_logs' ) );
+
+		}
+
 	}
 
 	/**
@@ -68,7 +78,7 @@ final class ITSEC_Logger {
 
 		add_meta_box(
 			'itsec_log_header',
-			__( 'Security Logs', 'LION' ),
+			__( 'Security Logs', 'it-l10n-better-wp-security' ),
 			array( $this, 'metabox_logs_header' ),
 			'security_page_toplevel_page_itsec_logs',
 			'top',
@@ -98,7 +108,7 @@ final class ITSEC_Logger {
 
 		add_meta_box(
 			'itsec_log_all',
-			__( 'All Logged Items', 'LION' ),
+			__( 'All Logged Items', 'it-l10n-better-wp-security' ),
 			array( $this, 'metabox_all_logs' ),
 			'security_page_toplevel_page_itsec_logs',
 			'advanced',
@@ -246,9 +256,9 @@ final class ITSEC_Logger {
 
 		printf(
 			'<p>%s %s. %s</p>',
-			__( 'Below are various logs of information collected by', 'LION' ),
+			__( 'Below are various logs of information collected by', 'it-l10n-better-wp-security' ),
 			$itsec_globals['plugin_name'],
-			__( 'This information can help you get a picture of what is happening with your site and the level of success you have achieved in your security efforts.', 'LION' )
+			__( 'This information can help you get a picture of what is happening with your site and the level of success you have achieved in your security efforts.', 'it-l10n-better-wp-security' )
 		);
 
 	}
@@ -262,13 +272,42 @@ final class ITSEC_Logger {
 	 */
 	public function metabox_all_logs() {
 
+		global $wpdb;
+
 		require( dirname( __FILE__ ) . '/class-itsec-logger-all-logs.php' );
 
-		echo __( 'Below is the log of all the log items in your WordPress Database. To adjust logging options visit the global settings page.', 'LION' );
+		echo __( 'Below is the log of all the log items in your WordPress Database. To adjust logging options visit the global settings page.', 'it-l10n-better-wp-security' );
 
 		$log_display = new ITSEC_Logger_All_Logs();
 		$log_display->prepare_items();
 		$log_display->display();
+
+		$log_count = $wpdb->get_var( "SELECT COUNT(*) FROM `" . $wpdb->base_prefix . "itsec_log`;" );
+
+		?>
+		<form method="post" action="">
+			<?php wp_nonce_field( 'itsec_clear_logs', 'wp_nonce' ); ?>
+			<input type="hidden" name="itsec_clear_logs" value="clear_logs"/>
+			<table class="form-table">
+				<tr valign="top">
+					<th scope="row" class="settinglabel">
+						<?php _e( 'Log Summary', 'it-l10n-better-wp-security' ); ?>
+					</th>
+					<td class="settingfield">
+
+						<p><?php _e( 'Your database contains', 'it-l10n-better-wp-security' ); ?>
+							<strong><?php echo $log_count; ?></strong> <?php _e( 'log entries.', 'it-l10n-better-wp-security' ); ?>
+						</p>
+
+						<p><?php _e( 'Use the button below to purge the log table in your database. Please note this will purge all log entries in the database including 404s.', 'it-l10n-better-wp-security' ); ?></p>
+
+						<p class="submit"><input type="submit" class="button-primary"
+						                         value="<?php _e( 'Clear Logs', 'it-l10n-better-wp-security' ); ?>"/></p>
+					</td>
+				</tr>
+			</table>
+		</form>
+	<?php
 
 	}
 
@@ -279,21 +318,33 @@ final class ITSEC_Logger {
 	 */
 	public function purge_logs() {
 
-		global $wpdb, $itsec_globals;
+		global $wpdb, $itsec_globals, $itsec_clear_all_logs;
 
-		//Clean up the database log first
-		if ( $itsec_globals['settings']['log_type'] === 0 || $itsec_globals['settings']['log_type'] == 2 ) {
+		if ( isset( $itsec_clear_all_logs ) && $itsec_clear_all_logs === true ) {
 
-			$wpdb->query( "DELETE FROM `" . $wpdb->base_prefix . "itsec_log` WHERE `log_date_gmt` < '" . date( 'Y-m-d H:i:s', $itsec_globals['current_time_gmt'] - ( $itsec_globals['settings']['log_rotation'] * 24 * 60 * 60 ) ) . "';" );
-
-		} else {
+			if ( ! wp_verify_nonce( $_POST['wp_nonce'], 'itsec_clear_logs' ) ) {
+				return;
+			}
 
 			$wpdb->query( "DELETE FROM `" . $wpdb->base_prefix . "itsec_log`;" );
 
-		}
+		} else {
 
-		if ( ( @file_exists( $this->log_file ) && @filesize( $this->log_file ) >= 10485760 ) ) {
-			$this->rotate_log();
+			//Clean up the database log first
+			if ( $itsec_globals['settings']['log_type'] === 0 || $itsec_globals['settings']['log_type'] == 2 ) {
+
+				$wpdb->query( "DELETE FROM `" . $wpdb->base_prefix . "itsec_log` WHERE `log_date_gmt` < '" . date( 'Y-m-d H:i:s', $itsec_globals['current_time_gmt'] - ( $itsec_globals['settings']['log_rotation'] * 24 * 60 * 60 ) ) . "';" );
+
+			} else {
+
+				$wpdb->query( "DELETE FROM `" . $wpdb->base_prefix . "itsec_log`;" );
+
+			}
+
+			if ( ( @file_exists( $this->log_file ) && @filesize( $this->log_file ) >= 10485760 ) ) {
+				$this->rotate_log();
+			}
+
 		}
 
 	}

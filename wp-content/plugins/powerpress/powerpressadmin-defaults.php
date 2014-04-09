@@ -55,6 +55,10 @@ function powerpress_admin_defaults()
 	$FeedSettings = powerpress_get_settings('powerpress_feed');
 	$FeedSettings = powerpress_default_settings($FeedSettings, 'editfeed');
 	
+	// Make sure variables are set
+	if( empty($FeedSettings['title']) )
+		$FeedSettings['title'] = '';
+	
 	$Step = 0;
 	if( !empty($FeedSettings['itunes_cat_1']) && !empty($FeedSettings['email']) && !empty($FeedSettings['itunes_image']) )
 		$Step = 1;
@@ -69,6 +73,16 @@ function powerpress_admin_defaults()
 
 	if( $Step == 2 && !empty($FeedSettings['itunes_url']) )
 		$Step = 3;
+		
+		$MultiSiteServiceSettings = false;
+	if( is_multisite() )
+	{
+		$MultiSiteSettings = get_site_option('powerpress_multisite');
+		if( !empty($MultiSiteSettings['services_multisite_only']) )
+		{
+			$MultiSiteServiceSettings = true;
+		}
+	}
 	
 ?>
 <script type="text/javascript"><!--
@@ -97,7 +111,14 @@ jQuery(document).ready(function($) {
 
 	powerpressadmin_default_steps($FeedSettings, $General, $Step);
 	
-	powerpressadmin_edit_blubrry_services($General);
+	if( $MultiSiteServiceSettings && defined('POWERPRESS_MULTISITE_VERSION') )
+	{
+		PowerPressMultiSitePlugin::edit_blubrry_services($General);
+	}
+	else
+	{
+		powerpressadmin_edit_blubrry_services($General);
+	}
 ?>
 <h3><?php echo __('Podcast Settings', 'powerpress'); ?></h3>
 <table class="form-table">

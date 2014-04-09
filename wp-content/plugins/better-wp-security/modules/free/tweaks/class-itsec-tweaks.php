@@ -95,7 +95,9 @@ class ITSEC_Tweaks {
 
 	public function current_jquery() {
 
-		if ( ! is_admin() ) {
+		global $itsec_is_old_admin;
+
+		if ( ! is_admin() && ! $itsec_is_old_admin ) {
 
 			wp_deregister_script( 'jquery' );
 			wp_deregister_script( 'jquery-core' );
@@ -166,15 +168,17 @@ class ITSEC_Tweaks {
 	 */
 	public function force_unique_nicename( &$errors, $update, &$user ) {
 
+		$display_name = isset( $user->display_name ) ? $user->display_name : ITSEC_Lib::get_random( 14 );
+
 		if ( ! empty( $user->nickname ) ) {
 
 			if ( $user->nickname == $user->user_login ) {
 
-				$errors->add( 'user_error', __( 'Your Nickname must be different than your login name. Please choose a different Nickname.', 'LION' ) );
+				$errors->add( 'user_error', __( 'Your Nickname must be different than your login name. Please choose a different Nickname.', 'it-l10n-better-wp-security' ) );
 
 			} else {
 
-				$user->user_nicename = sanitize_title( $user->nickname, $user->display_name );
+				$user->user_nicename = sanitize_title( $user->nickname, $display_name );
 
 			}
 
@@ -184,11 +188,11 @@ class ITSEC_Tweaks {
 
 			$user->nickname = $full_name;
 
-			$user->user_nicename = sanitize_title( $full_name, $user->display_name );
+			$user->user_nicename = sanitize_title( $full_name, $display_name );
 
 		} else {
 
-			$errors->add( 'user_error', __( 'A Nickname is required. Please choose a nickname or fill out your first and last name.', 'LION' ) );
+			$errors->add( 'user_error', __( 'A Nickname is required. Please choose a nickname or fill out your first and last name.', 'it-l10n-better-wp-security' ) );
 
 		}
 

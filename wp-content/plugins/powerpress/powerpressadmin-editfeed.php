@@ -650,6 +650,19 @@ if( isset($Languages[ $rss_language ]) )
 <input type="text" name="Feed[copyright]" style="width: 60%;" value="<?php echo $FeedSettings['copyright']; ?>" maxlength="250" />
 </td>
 </tr>
+<tr valign="top">
+<th scope="row">
+<?php echo __('Caching Debug Comments', 'powerpress'); ?>
+</th>
+<td>
+<label><input type="checkbox" name="General[allow_feed_comments]" value="1" <?php if( !empty($General['allow_feed_comments']) ) echo 'checked'; ?> />
+	<?php echo __('Allow WP Super Cache or W3 Total Cache to add HTML Comments to the bottom of your feeds', 'powerpress'); ?></label>
+	(<?php echo __('Recommended unchecked', 'powerpress'); ?>)
+<p><?php echo __('iTunes is known to have issues with feeds that have HTML comments at the bottom.', 'powerpress'); ?></p>
+<p style="margin-bottomd: 0;" class="description"><?php echo __('NOTE: This setting should only be enabled for debugging purposes.', 'powerpress'); ?></p>
+</td>
+</tr>
+
 <!-- end advanced features -->
 <?php  } ?>
 </table>
